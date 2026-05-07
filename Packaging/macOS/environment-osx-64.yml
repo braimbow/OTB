@@ -1,0 +1,41 @@
+name: otb-macos-osx64
+channels:
+  - conda-forge
+dependencies:
+  # Core build tools
+  - python=3.10
+  - cmake
+  - make
+  - ninja
+  - git
+  - git-lfs
+  - curl
+  - pkg-config
+  - ca-certificates
+  - patch
+
+  # Conda compiler toolchain for osx-64 builds.
+  - c-compiler
+  - cxx-compiler
+  - fortran-compiler
+  - clang_osx-64
+  - clangxx_osx-64
+  - gfortran_osx-64
+
+  # Autotools-style projects used by several SuperBuild dependencies.
+  - autoconf
+  - automake
+  - bison
+  - flex
+  - m4
+  - libtool
+
+  # Wrapping and helper tooling.
+  - swig
+
+  # Python utilities used by validation helpers and HDF5-based workflows.
+  - h5py
+  - numpy
+
+  # Optional but useful for DEM/object-store download workflows.
+  - awscli

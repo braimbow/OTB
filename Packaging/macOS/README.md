@@ -33,6 +33,40 @@ merged separately.
 
 ## Create a Conda Environment
 
+The recommended reproducible environment file is:
+
+```text
+Packaging/macOS/environment-osx-64.yml
+```
+
+For Intel macOS or Apple Silicon under Rosetta/x86_64:
+
+```bash
+export OTB_WORK_DIR="$HOME/otb-macos"
+export OTB_CONDA_PREFIX="$OTB_WORK_DIR/otb_env"
+export CONDA_SUBDIR=osx-64
+
+conda env create -p "$OTB_CONDA_PREFIX" -f Packaging/macOS/environment-osx-64.yml
+```
+
+An exact lock-style export of the environment used during development is also
+provided:
+
+```text
+Packaging/macOS/conda-explicit-osx-64.txt
+```
+
+It can be used when the flexible YAML environment is not enough:
+
+```bash
+export OTB_WORK_DIR="$HOME/otb-macos"
+export OTB_CONDA_PREFIX="$OTB_WORK_DIR/otb_env"
+conda create -y -p "$OTB_CONDA_PREFIX" --file Packaging/macOS/conda-explicit-osx-64.txt
+```
+
+The explicit file is more reproducible but less portable over time than the YAML
+file.
+
 For Intel macOS or Apple Silicon under Rosetta/x86_64:
 
 ```bash
@@ -45,8 +79,9 @@ conda create -y -p "$OTB_CONDA_PREFIX" -c conda-forge \
   clang_osx-64 clangxx_osx-64 gfortran_osx-64
 ```
 
-For native Apple Silicon, omit `CONDA_SUBDIR=osx-64` and choose compiler packages
-matching your Conda platform.
+For a quick manual environment, the command above is still sufficient as a
+minimal starting point. For native Apple Silicon, omit `CONDA_SUBDIR=osx-64` and
+choose compiler packages matching your Conda platform.
 
 ## Activate the Environment
 
