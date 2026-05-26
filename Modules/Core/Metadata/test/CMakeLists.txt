@@ -25,6 +25,7 @@ otbMetadataTestDriver.cxx
 otbImageMetadataInterfaceTest.cxx
 otbNoDataHelperTest.cxx
 otbSarCalibrationLookupDataTest.cxx
+otbBiomassCalibrationLookupDataTest.cxx
 otbImageMetadataTest.cxx
 otbGeomMetadataSupplierTest.cxx
 otbXMLMetadataSupplierTest.cxx
@@ -62,6 +63,10 @@ otb_add_test(NAME ioTvSarCalibrationLookupDataTest_RADARSAT2 COMMAND otbMetadata
   otbSarCalibrationLookupDataTest
   ${INPUTDATA}/radarsat2/RADARSAT2_ALTONA_300_300_VV.tif?&geom=${INPUTDATA}/radarsat2/RADARSAT2_ALTONA_300_300_VV.geom
   ${TEMP}/ioTvSarCalibrationLookupDataTest_RADARSAT2.txt
+  )
+
+otb_add_test(NAME ioTuBiomassCalibrationLookupDataTest COMMAND otbMetadataTestDriver
+  otbBiomassCalibrationLookupDataTest
   )
 
 otb_add_test(NAME ioTuMetaDataKeyTest COMMAND otbMetadataTestDriver 
