@@ -878,7 +878,10 @@ void Sentinel1ImageMetadataInterface::Parse(ImageMetadata & imd)
       || m_MetadataSupplierInterface->GetAs<std::string>("", "TIFFTAG_IMAGEDESCRIPTION").substr(0, 10) == "Sentinel-1")
     this->ParseGdal(imd);
   // Try to fetch the metadata from GEOM file
-  else if (m_MetadataSupplierInterface->GetAs<std::string>("", "sensor") == "SENTINEL-1A" || m_MetadataSupplierInterface->GetAs<std::string>("", "sensor") == "SENTINEL-1B")
+  else if (m_MetadataSupplierInterface->GetAs<std::string>("", "sensor") == "SENTINEL-1A"
+           || m_MetadataSupplierInterface->GetAs<std::string>("", "sensor") == "SENTINEL-1B"
+           || m_MetadataSupplierInterface->GetAs<std::string>("", "sensor") == "SENTINEL-1C"
+           || m_MetadataSupplierInterface->GetAs<std::string>("", "sensor") == "SENTINEL-1D")
     this->ParseGeom(imd);
   // Failed to fetch the metadata
   else
