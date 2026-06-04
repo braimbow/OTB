@@ -59,6 +59,10 @@ set(OTBMetadata_SRC
   otbTerraSarXSarImageMetadataInterfaceFactory.cxx
   otbTerraSarXSarImageMetadataInterface.cxx
 
+  otbBiomassImageMetadataInterfaceFactory.cxx
+  otbBiomassImageMetadataInterface.cxx
+  otbBiomassCalibrationLookupData.cxx
+
   otbSentinel1ImageMetadataInterfaceFactory.cxx
   otbSentinel1ImageMetadataInterface.cxx
   otbSentinel1ThermalNoiseLookupData.cxx
