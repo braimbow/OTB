@@ -24,6 +24,7 @@
 
 #include "gdal_priv.h"
 #include "cpl_conv.h"
+#include "cpl_error.h"
 
 #include <algorithm>
 #include <cmath>
@@ -102,19 +103,21 @@ std::string BuildNetCDFDatasetName(const std::string& sourceFile, const std::str
   return "NETCDF:\"" + sourceFile + "\":" + variable;
 }
 
-std::vector<double> ReadNetCDFVector(const std::string& sourceFile, const std::string& variable)
+bool TryReadNetCDFVector(const std::string& sourceFile, const std::string& variable, std::vector<double>& values)
 {
   GDALAllRegister();
   const std::string datasetName = BuildNetCDFDatasetName(sourceFile, variable);
+  CPLPushErrorHandler(CPLQuietErrorHandler);
   GDALDataset* dataset = static_cast<GDALDataset*>(GDALOpen(datasetName.c_str(), GA_ReadOnly));
+  CPLPopErrorHandler();
   if (dataset == nullptr)
   {
-    otbGenericExceptionMacro(itk::ExceptionObject, << "Cannot open BIOMASS NetCDF variable " << datasetName);
+    return false;
   }
 
   const int width = dataset->GetRasterXSize();
   const int height = dataset->GetRasterYSize();
-  std::vector<double> values(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+  values.resize(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
   const auto err = dataset->GetRasterBand(1)->RasterIO(GF_Read, 0, 0, width, height,
                                                        values.data(), width, height,
                                                        GDT_Float64, 0, 0, nullptr);
@@ -124,6 +127,26 @@ std::vector<double> ReadNetCDFVector(const std::string& sourceFile, const std::s
   {
     otbGenericExceptionMacro(itk::ExceptionObject, << "Cannot read BIOMASS NetCDF variable " << datasetName);
   }
+  return true;
+}
+
+std::vector<double> ReadFirstAvailableNetCDFVector(const std::string& sourceFile, const std::vector<std::string>& variables)
+{
+  std::vector<double> values;
+  for (const auto& variable : variables)
+  {
+    if (TryReadNetCDFVector(sourceFile, variable, values))
+    {
+      return values;
+    }
+  }
+  std::ostringstream oss;
+  for (const auto& variable : variables)
+  {
+    oss << variable << " ";
+  }
+  otbGenericExceptionMacro(itk::ExceptionObject,
+                           << "Cannot open any BIOMASS NetCDF axis in " << sourceFile << ": " << oss.str());
   return values;
 }
 
@@ -185,8 +208,8 @@ void BiomassCalibrationLookupData::InitializeFromNetCDF(short type,
 
 void BiomassCalibrationLookupData::LoadFromNetCDF(const std::string& sourceFile, const std::string& sourceVariable)
 {
-  m_LUTSlantRangeTimes = ReadNetCDFVector(sourceFile, "slantRangeTimeRGC");
-  m_LUTAzimuthTimes = ReadNetCDFVector(sourceFile, "relativeAzimuthTimeRGC");
+  m_LUTSlantRangeTimes = ReadFirstAvailableNetCDFVector(sourceFile, {"slantRangeTimeRGC", "slantRangeTime"});
+  m_LUTAzimuthTimes = ReadFirstAvailableNetCDFVector(sourceFile, {"relativeAzimuthTimeRGC", "relativeAzimuthTime"});
 
   GDALAllRegister();
   const std::string datasetName = BuildNetCDFDatasetName(sourceFile, sourceVariable);

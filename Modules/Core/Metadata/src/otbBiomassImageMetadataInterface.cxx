@@ -45,6 +45,7 @@ struct BiomassProductFiles
 {
   std::string productDirectory;
   std::string annotationFile;
+  std::string productAnnotationFile;
   std::string lutFile;
   std::string orbitFile;
   std::string mainFile;
@@ -225,6 +226,7 @@ BiomassProductFiles ResolveProductFiles(const std::string& resourceFile)
       BiomassProductFiles files;
       files.productDirectory = cursor.string();
       files.annotationFile = FindFirstFile(cursor / "annotation", "_annot", ".xml");
+      files.productAnnotationFile = files.annotationFile;
       files.lutFile = FindFirstFile(cursor / "annotation", "_lut", ".nc");
       files.orbitFile = FindFirstFile(cursor / "annotation" / "navigation", "_orb", ".xml");
       files.mainFile = FindFirstFile(cursor, "", ".xml");
@@ -233,6 +235,27 @@ BiomassProductFiles ResolveProductFiles(const std::string& resourceFile)
       {
         otbGenericExceptionMacro(otb::MissingMetadataException,
                                  << "Incomplete BIOMASS product structure under " << cursor.string());
+      }
+      return files;
+    }
+
+    if (boost::filesystem::exists(cursor / "annotation_primary") &&
+        boost::filesystem::exists(cursor / "annotation_coregistered") &&
+        boost::filesystem::exists(cursor / "measurement"))
+    {
+      BiomassProductFiles files;
+      files.productDirectory = cursor.string();
+      files.annotationFile = FindFirstFile(cursor / "annotation_primary", "_annot", ".xml");
+      files.productAnnotationFile = FindFirstFile(cursor / "annotation_coregistered", "_annot", ".xml");
+      files.lutFile = FindFirstFile(cursor / "annotation_coregistered", "_lut", ".nc");
+      files.orbitFile = FindFirstFile(cursor / "annotation_primary" / "navigation", "_orb", ".xml");
+      files.mainFile = FindFirstFile(cursor, "", ".xml");
+
+      if (files.annotationFile.empty() || files.productAnnotationFile.empty() ||
+          files.lutFile.empty() || files.orbitFile.empty())
+      {
+        otbGenericExceptionMacro(otb::MissingMetadataException,
+                                 << "Incomplete BIOMASS L1C/STA product structure under " << cursor.string());
       }
       return files;
     }
@@ -451,16 +474,26 @@ void BiomassImageMetadataInterface::ParseGdal(ImageMetadata& imd)
 
   const auto files = ResolveProductFiles(m_MetadataSupplierInterface->GetResourceFile());
   TiXmlDocument annotationDoc(files.annotationFile.c_str());
+  TiXmlDocument productAnnotationDoc(files.productAnnotationFile.c_str());
   TiXmlDocument orbitDoc(files.orbitFile.c_str());
   if (!annotationDoc.LoadFile())
   {
     otbGenericExceptionMacro(MissingMetadataException, << "Cannot read BIOMASS XML metadata file " << files.annotationFile);
+  }
+  if (!files.productAnnotationFile.empty() && files.productAnnotationFile != files.annotationFile &&
+      !productAnnotationDoc.LoadFile())
+  {
+    otbGenericExceptionMacro(MissingMetadataException, << "Cannot read BIOMASS XML metadata file " << files.productAnnotationFile);
   }
   if (!orbitDoc.LoadFile())
   {
     otbGenericExceptionMacro(MissingMetadataException, << "Cannot read BIOMASS XML metadata file " << files.orbitFile);
   }
   CheckLoadedXML(annotationDoc, files.annotationFile);
+  if (!files.productAnnotationFile.empty() && files.productAnnotationFile != files.annotationFile)
+  {
+    CheckLoadedXML(productAnnotationDoc, files.productAnnotationFile);
+  }
   CheckLoadedXML(orbitDoc, files.orbitFile);
 
   TiXmlDocument mainDoc(files.mainFile.c_str());
@@ -474,8 +507,12 @@ void BiomassImageMetadataInterface::ParseGdal(ImageMetadata& imd)
   }
 
   const TiXmlElement* annotationRoot = annotationDoc.RootElement();
+  const TiXmlElement* productAnnotationRoot =
+      (files.productAnnotationFile.empty() || files.productAnnotationFile == files.annotationFile) ?
+      annotationRoot : productAnnotationDoc.RootElement();
   const TiXmlElement* orbitRoot = orbitDoc.RootElement();
   const TiXmlElement* acquisitionInformation = Child(annotationRoot, "acquisitionInformation");
+  const TiXmlElement* productAcquisitionInformation = Child(productAnnotationRoot, "acquisitionInformation");
   const TiXmlElement* sarImage = Child(annotationRoot, "sarImage");
   const TiXmlElement* instrumentParameters = Child(annotationRoot, "instrumentParameters");
   const TiXmlElement* processingParameters = Child(annotationRoot, "processingParameters");
@@ -493,7 +530,7 @@ void BiomassImageMetadataInterface::ParseGdal(ImageMetadata& imd)
   if (projection != "Slant Range" || groundProjectionFlag != "false")
   {
     otbGenericExceptionMacro(MissingMetadataException,
-                             << "Only BIOMASS non-ground-projected SCS products are supported");
+                             << "Only BIOMASS non-ground-projected SCS/STA products are supported");
   }
 
   const double firstSlantRangeTime = RequiredDouble(sarImage, "firstSampleSlantRangeTime");
@@ -511,11 +548,12 @@ void BiomassImageMetadataInterface::ParseGdal(ImageMetadata& imd)
   imd.Add(MDStr::SensorID, "BIOMASS");
   imd.Add(MDStr::Mission, "BIOMASS");
   imd.Add(MDStr::Instrument, "P-SAR");
-  imd.Add(MDStr::ProductType, RequiredText(acquisitionInformation, "productType"));
+  const std::string productType = RequiredText(productAcquisitionInformation, "productType");
+  imd.Add(MDStr::ProductType, productType);
   imd.Add(MDStr::Swath, RequiredText(acquisitionInformation, "swath"));
   imd.Add(MDStr::OrbitDirection, RequiredText(acquisitionInformation, "orbitPass"));
   imd.Add(MDStr::Polarization, "HH HV VH VV");
-  imd.Add(MDStr::Mode, "SCS");
+  imd.Add(MDStr::Mode, productType);
   imd.Add(MDNum::NumberOfColumns, static_cast<double>(numberOfSamples));
   imd.Add(MDNum::NumberOfLines, static_cast<double>(numberOfLines));
   imd.Add(MDNum::LineSpacing, azimuthPixelSpacing);

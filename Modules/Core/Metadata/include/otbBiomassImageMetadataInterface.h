@@ -29,11 +29,13 @@ namespace otb
 
 /** \class BiomassImageMetadataInterface
  *
- * \brief Metadata reader for ESA BIOMASS L1 SCS products.
+ * \brief Metadata reader for ESA BIOMASS L1 SCS and STA products.
  *
- * The current support targets non-ground-projected SCS products represented by
- * the official measurement VRT. BIOMASS SCS is handled as a single-burst
- * slant-range SAR image, similar to TSX/PAZ/TDX or CSK in OTB.
+ * The current support targets non-ground-projected SCS products and L1C/STA
+ * stack products represented by the official measurement VRT. BIOMASS images
+ * are handled as single-burst slant-range SAR images, similar to TSX/PAZ/TDX
+ * or CSK in OTB. For STA stacks, the primary annotation provides the common
+ * stack geometry and the coregistered annotation provides product-level LUTs.
  *
  * \ingroup OTBMetadata
  */
