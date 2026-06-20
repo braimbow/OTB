@@ -20,6 +20,7 @@
 
 #include "otbSARMetadata.h"
 #include "otbBiomassCalibrationLookupData.h"
+#include "otbCapellaCalibrationLookupData.h"
 #include "otbSarCalibrationLookupData.h"
 #include "otbNISARCalibrationLookupData.h"
 #include "otbSentinel1CalibrationLookupData.h"
@@ -671,6 +672,12 @@ void SARCalib::FromKeywordlist(const MetaData::Keywordlist & kwl, const std::str
       else if (sensor == "Biomass")
       {
         auto lut = BiomassCalibrationLookupData::New();
+        lut->FromKeywordlist(kwl, prefix + "CalibrationLookupData_" + id + "_");
+        calibrationLookupData[id_short] = lut;
+      }
+      else if (sensor == "Capella")
+      {
+        auto lut = CapellaCalibrationLookupData::New();
         lut->FromKeywordlist(kwl, prefix + "CalibrationLookupData_" + id + "_");
         calibrationLookupData[id_short] = lut;
       }

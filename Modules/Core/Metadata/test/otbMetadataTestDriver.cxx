@@ -27,6 +27,7 @@ void RegisterTests()
   REGISTER_TEST(otbNISARCalibrationLookupDataTest);
   REGISTER_TEST(otbSarCalibrationLookupDataTest);
   REGISTER_TEST(otbBiomassCalibrationLookupDataTest);
+  REGISTER_TEST(otbCapellaCalibrationLookupDataTest);
   REGISTER_TEST(otbImageMetadataTest);
   REGISTER_TEST(otbGeomMetadataSupplierTest);
   REGISTER_TEST(otbXMLMetadataSupplierTest);

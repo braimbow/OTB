@@ -63,6 +63,10 @@ set(OTBMetadata_SRC
   otbBiomassImageMetadataInterface.cxx
   otbBiomassCalibrationLookupData.cxx
 
+  otbCapellaImageMetadataInterfaceFactory.cxx
+  otbCapellaImageMetadataInterface.cxx
+  otbCapellaCalibrationLookupData.cxx
+
   otbSentinel1ImageMetadataInterfaceFactory.cxx
   otbSentinel1ImageMetadataInterface.cxx
   otbSentinel1ThermalNoiseLookupData.cxx

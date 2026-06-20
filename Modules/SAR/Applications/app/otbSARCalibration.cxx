@@ -48,13 +48,13 @@ private:
   {
     SetName("SARCalibration");
     SetDescription(
-        "Perform radiometric calibration of SAR images. Following sensors are supported: TerraSAR-X, Sentinel1 and Radarsat-2.Both Single Look Complex(SLC) "
+        "Perform radiometric calibration of SAR images. Following sensors are supported: CAPELLA, TerraSAR-X, Sentinel1 and Radarsat-2.Both Single Look Complex(SLC) "
         "and detected products are supported as input.");
 
     // Documentation
     SetDocLongDescription(
         "The objective of SAR calibration is to provide imagery in which the pixel values can be directly related to the radar backscatter of the scene. This "
-        "application allows computing Sigma Naught (Radiometric Calibration) for TerraSAR-X, Sentinel1 L1 and Radarsat-2 sensors. Metadata are automatically "
+        "application allows computing Sigma Naught (Radiometric Calibration) for CAPELLA, TerraSAR-X, Sentinel1 L1 and Radarsat-2 sensors. Metadata are automatically "
         "retrieved from image products.The application supports complex and non-complex images (SLC or detected products).");
     SetDocLimitations("The implementation of TerraSAR-X denoising is still experimental. The results have not been validated recently, see OTB issue #2158");
     SetDocAuthors("OTB-Team");
@@ -80,7 +80,7 @@ private:
 
     AddParameter(ParameterType_Choice, "lut", "Lookup table");
     SetParameterDescription(
-        "lut", "Lookup table values are not available with all SAR products. Products that provide lookup table with metadata are: Sentinel1, Radarsat2.");
+        "lut", "Lookup table values are not available with all SAR products. Products that provide lookup table with metadata are: CAPELLA, Sentinel1, Radarsat2.");
     AddChoice("lut.sigma", "Use sigma nought lookup");
     SetParameterDescription("lut.sigma", "Use Sigma nought lookup value from product metadata");
     AddChoice("lut.beta", "Use beta nought lookup");

@@ -27,6 +27,7 @@ otbNoDataHelperTest.cxx
 otbSarCalibrationLookupDataTest.cxx
 otbNISARCalibrationLookupDataTest.cxx
 otbBiomassCalibrationLookupDataTest.cxx
+otbCapellaCalibrationLookupDataTest.cxx
 otbImageMetadataTest.cxx
 otbGeomMetadataSupplierTest.cxx
 otbXMLMetadataSupplierTest.cxx
@@ -71,6 +72,10 @@ otb_add_test(NAME ioTvSarCalibrationLookupDataTest_RADARSAT2 COMMAND otbMetadata
 
 otb_add_test(NAME ioTuBiomassCalibrationLookupDataTest COMMAND otbMetadataTestDriver
   otbBiomassCalibrationLookupDataTest
+  )
+
+otb_add_test(NAME ioTuCapellaCalibrationLookupDataTest COMMAND otbMetadataTestDriver
+  otbCapellaCalibrationLookupDataTest
   )
 
 otb_add_test(NAME ioTuMetaDataKeyTest COMMAND otbMetadataTestDriver 
