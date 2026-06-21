@@ -33,6 +33,7 @@
 #include <fstream>
 #include <iterator>
 #include <numeric>
+#include <iomanip>
 #include <sstream>
 
 namespace
@@ -76,6 +77,27 @@ std::string ReadFile(const std::string& path)
 
   return std::string(std::istreambuf_iterator<char>(input),
                      std::istreambuf_iterator<char>());
+}
+
+std::string ToStringWithPrecision(double value)
+{
+  std::ostringstream oss;
+  oss << std::setprecision(17) << value;
+  return oss.str();
+}
+
+std::string JoinDoubles(const std::vector<double>& values)
+{
+  std::ostringstream oss;
+  for (std::size_t i = 0; i < values.size(); ++i)
+  {
+    if (i > 0)
+    {
+      oss << ' ';
+    }
+    oss << std::setprecision(17) << values[i];
+  }
+  return oss.str();
 }
 
 std::string FindSidecarMetadata(const otb::MetadataSupplierInterface& mds)
@@ -196,7 +218,7 @@ PTree ReadSicdMetadata(const otb::MetadataSupplierInterface& mds)
   if (!hasValue || sicdPayload.empty())
   {
     otbGenericExceptionMacro(otb::MissingMetadataException,
-                             << "Missing SICD_METADATA required for CAPELLA radiometric calibration");
+                             << "Missing SICD_METADATA required for CAPELLA radiometric calibration and spotlight deramp metadata");
   }
 
   auto root = ReadJsonString(sicdPayload, "SICD_METADATA");
@@ -242,9 +264,76 @@ Polynomial2D ReadPolynomial2D(const PTree& root, const std::string& path)
   return poly;
 }
 
+std::vector<double> ReadDoubleList(const PTree& root, const std::string& path)
+{
+  std::vector<double> values;
+  for (const auto& item : RequiredChild(root, path))
+  {
+    values.push_back(item.second.get_value<double>());
+  }
+  if (values.empty())
+  {
+    otbGenericExceptionMacro(otb::MissingMetadataException,
+                             << "Empty CAPELLA metadata list " << path);
+  }
+  return values;
+}
+
+double ReadFirst2DPolynomialCoefficient(const PTree& root, const std::string& path)
+{
+  const auto& rows = RequiredChild(root, path + ".Coefs");
+  if (rows.empty())
+  {
+    otbGenericExceptionMacro(otb::MissingMetadataException,
+                             << "Empty CAPELLA metadata polynomial " << path);
+  }
+
+  const auto& firstRow = rows.begin()->second;
+  if (firstRow.empty())
+  {
+    return firstRow.get_value<double>();
+  }
+
+  return firstRow.begin()->second.get_value<double>();
+}
+
+double ReadVectorNorm(const PTree& root, const std::string& path)
+{
+  const double x = RequiredValue<double>(root, path + ".X");
+  const double y = RequiredValue<double>(root, path + ".Y");
+  const double z = RequiredValue<double>(root, path + ".Z");
+  return std::sqrt(x * x + y * y + z * z);
+}
+
 otb::MetaData::TimePoint ReadCapellaTime(const std::string& value)
 {
   return otb::MetaData::ReadFormattedDate(value);
+}
+
+double SecondsBetween(const otb::MetaData::TimePoint& lhs,
+                      const otb::MetaData::TimePoint& rhs)
+{
+  return otb::MetaData::Duration(lhs - rhs).TotalSeconds();
+}
+
+std::string NormalizeCapellaMode(const std::string& mode)
+{
+  auto normalizedMode = itksys::SystemTools::UpperCase(mode);
+  std::replace(normalizedMode.begin(), normalizedMode.end(), '-', '_');
+  std::replace(normalizedMode.begin(), normalizedMode.end(), ' ', '_');
+  return normalizedMode;
+}
+
+bool IsCapellaDerampMode(const std::string& mode)
+{
+  const auto upperMode = NormalizeCapellaMode(mode);
+  return upperMode == "SPOTLIGHT" || upperMode == "SLIDING_SPOTLIGHT";
+}
+
+bool IsCapellaStripmapMode(const std::string& mode)
+{
+  const auto upperMode = NormalizeCapellaMode(mode);
+  return upperMode == "STRIPMAP" || upperMode == "STRIP_MAP";
 }
 
 std::string GetPolarization(const PTree& root)
@@ -429,6 +518,83 @@ void FillSarCalibration(otb::SARCalib& sarCalib,
   sarCalib.calibrationLookupData[otb::SarCalibrationLookupData::DN] = dn;
 }
 
+double ReadCapellaDopplerRate(const PTree& sicd)
+{
+  const double velocityNorm = ReadVectorNorm(sicd, "metadata.SCPCOA.ARPVel");
+  const double slantRange = RequiredValue<double>(sicd, "metadata.SCPCOA.SlantRange");
+  const double frequency = RequiredValue<double>(sicd, "metadata.RMA.INCA.FreqZero");
+  const double dopplerRateScaleFactor = ReadFirst2DPolynomialCoefficient(sicd, "metadata.RMA.INCA.DRateSFPoly");
+
+  if (velocityNorm <= 0.0 || slantRange <= 0.0 || frequency <= 0.0)
+  {
+    otbGenericExceptionMacro(otb::MissingMetadataException,
+                             << "Invalid CAPELLA SICD deramp metadata: velocity, slant range and carrier frequency must be positive");
+  }
+
+  const double wavelength = SpeedOfLight / frequency;
+  return -2.0 * velocityNorm * velocityNorm / (wavelength * slantRange) * dopplerRateScaleFactor;
+}
+
+void FillCapellaDerampMetadata(otb::ImageMetadata& imd,
+                               otb::SARParam& sarParam,
+                               const PTree& sicd,
+                               const std::string& mode,
+                               const otb::MetaData::TimePoint& firstAzimuthTime,
+                               const otb::MetaData::TimePoint& lastAzimuthTime,
+                               double firstSlantRangeTime)
+{
+  imd.Add("capella.deramp.mode", NormalizeCapellaMode(mode));
+  imd.Add("capella.deramp.axisConvention", "SICD_ROW_IS_IMAGE_COLUMN");
+  imd.Add("capella.deramp.usesRadiometricCalibration", "false");
+
+  if (IsCapellaStripmapMode(mode))
+  {
+    imd.Add("capella.deramp.available", "false");
+    imd.Add("capella.deramp.reason", "CAPELLA stripmap products are routed to the non-deramp DiapOTB path");
+    return;
+  }
+
+  if (!IsCapellaDerampMode(mode))
+  {
+    imd.Add("capella.deramp.available", "false");
+    imd.Add("capella.deramp.reason", "Unsupported CAPELLA acquisition mode for deramp: " + mode);
+    return;
+  }
+
+  const auto collectStart = ReadCapellaTime(RequiredValue<std::string>(sicd, "metadata.Timeline.CollectStart"));
+  const auto timeCaPoly = ReadDoubleList(sicd, "metadata.RMA.INCA.TimeCAPoly.Coefs");
+  const double rangeCaScp = RequiredValue<double>(sicd, "metadata.RMA.INCA.R_CA_SCP");
+  const double dopplerRate = ReadCapellaDopplerRate(sicd);
+  const double firstLineOffset = SecondsBetween(firstAzimuthTime, collectStart);
+  const double processedStart = sicd.get<double>("metadata.ImageFormation.TStartProc", 0.0);
+  const double processedStop = sicd.get<double>("metadata.ImageFormation.TEndProc", 0.0);
+  const double scpTime = RequiredValue<double>(sicd, "metadata.SCPCOA.SCPTime");
+  const auto sideOfTrack = RequiredValue<std::string>(sicd, "metadata.SCPCOA.SideOfTrack");
+
+  imd.Add("capella.deramp.available", "true");
+  imd.Add("capella.deramp.reason", "");
+  imd.Add("capella.deramp.timeCaPoly", JoinDoubles(timeCaPoly));
+  imd.Add("capella.deramp.rangeCaScp", ToStringWithPrecision(rangeCaScp));
+  imd.Add("capella.deramp.dopplerRate", ToStringWithPrecision(dopplerRate));
+  imd.Add("capella.deramp.firstLineOffset", ToStringWithPrecision(firstLineOffset));
+  imd.Add("capella.deramp.processedStart", ToStringWithPrecision(processedStart));
+  imd.Add("capella.deramp.processedStop", ToStringWithPrecision(processedStop));
+  imd.Add("capella.deramp.scpTime", ToStringWithPrecision(scpTime));
+  imd.Add("capella.deramp.sideOfTrack", itksys::SystemTools::UpperCase(sideOfTrack));
+
+  otb::AzimuthFmRate firstRate;
+  firstRate.azimuthTime = firstAzimuthTime;
+  firstRate.t0 = firstSlantRangeTime;
+  firstRate.azimuthFmRatePolynomial = {dopplerRate, 0.0, 0.0};
+  sarParam.azimuthFmRates.push_back(firstRate);
+
+  otb::AzimuthFmRate lastRate;
+  lastRate.azimuthTime = lastAzimuthTime;
+  lastRate.t0 = firstSlantRangeTime;
+  lastRate.azimuthFmRatePolynomial = {dopplerRate, 0.0, 0.0};
+  sarParam.azimuthFmRates.push_back(lastRate);
+}
+
 } // end anonymous namespace
 
 namespace otb
@@ -462,7 +628,7 @@ void CapellaImageMetadataInterface::ParseGdal(ImageMetadata& imd)
 
   const auto platform = itksys::SystemTools::UpperCase(RequiredValue<std::string>(root, "collect.platform"));
   const auto productType = itksys::SystemTools::UpperCase(RequiredValue<std::string>(root, "product_type"));
-  const auto mode = itksys::SystemTools::UpperCase(RequiredValue<std::string>(root, "collect.mode"));
+  const auto mode = NormalizeCapellaMode(RequiredValue<std::string>(root, "collect.mode"));
   const auto polarization = GetPolarization(root);
 
   const unsigned long numberOfLines = RequiredValue<unsigned long>(root, "collect.image.rows");
@@ -536,12 +702,23 @@ void CapellaImageMetadataInterface::ParseGdal(ImageMetadata& imd)
 
   sarParam.orbits = ReadOrbits(root);
 
-  DopplerCentroid centroid;
-  centroid.azimuthTime = firstAzimuthTime;
-  centroid.t0 = firstSlantRangeTime;
-  centroid.dopCoef = {root.get<double>("collect.image.reference_doppler_centroid", 0.0), 0.0, 0.0};
-  centroid.geoDopCoef = {0.0, 0.0, 0.0};
-  sarParam.dopplerCentroids.push_back(centroid);
+  const double referenceDopplerCentroid = root.get<double>("collect.image.reference_doppler_centroid", 0.0);
+  DopplerCentroid firstCentroid;
+  firstCentroid.azimuthTime = firstAzimuthTime;
+  firstCentroid.t0 = firstSlantRangeTime;
+  firstCentroid.dopCoef = {referenceDopplerCentroid, 0.0, 0.0};
+  firstCentroid.geoDopCoef = {0.0, 0.0, 0.0};
+  sarParam.dopplerCentroids.push_back(firstCentroid);
+
+  DopplerCentroid lastCentroid;
+  lastCentroid.azimuthTime = lastAzimuthTime;
+  lastCentroid.t0 = firstSlantRangeTime;
+  lastCentroid.dopCoef = {referenceDopplerCentroid, 0.0, 0.0};
+  lastCentroid.geoDopCoef = {0.0, 0.0, 0.0};
+  sarParam.dopplerCentroids.push_back(lastCentroid);
+
+  const auto sicd = ReadSicdMetadata(*m_MetadataSupplierInterface);
+  FillCapellaDerampMetadata(imd, sarParam, sicd, mode, firstAzimuthTime, lastAzimuthTime, firstSlantRangeTime);
 
   FillGCPTimes(sarParam, gcpParam, firstAzimuthTime, azimuthTimeInterval,
                firstSlantRangeTime, rangeTimeInterval);
